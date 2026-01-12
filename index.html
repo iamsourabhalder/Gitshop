@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickShop - Admin Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .cart-modal { transition: transform 0.3s ease-in-out; transform: translateX(100%); }
+        .cart-modal.open { transform: translateX(0); }
+        .admin-panel { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; pointer-events: none; transform: translateY(20px); }
+        .admin-panel.active { opacity: 1; pointer-events: auto; transform: translateY(0); }
+        .loading-skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
+        @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        @keyframes shake { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+        .cart-bounce { animation: shake 0.3s ease-in-out; }
+        #json-export::-webkit-scrollbar { width: 4px; }
+        #json-export::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-green-600">QuickShop</h1>
+                <button onclick="toggleAdmin()" id="admin-toggle-btn" class="text-[10px] uppercase tracking-widest text-gray-400 hover:text-green-500 transition">Admin Login</button>
+            </div>
+            <button id="cart-btn" onclick="toggleCart()" class="relative p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span id="cart-count" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Admin Panel -->
+    <section id="admin-section" class="admin-panel fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <!-- Login -->
+            <div id="admin-auth" class="p-8 text-center">
+                <div class="mb-4 inline-flex p-3 bg-green-50 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold mb-6">Admin Access</h2>
+                <input type="password" id="admin-pass" placeholder="Password" class="w-full p-3 border rounded-xl mb-4 text-center font-mono outline-none focus:ring-2 focus:ring-green-500">
+                <div class="flex gap-2">
+                    <button onclick="toggleAdmin()" class="flex-1 py-2 text-gray-400 font-bold">Cancel</button>
+                    <button onclick="loginAdmin()" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700">Login</button>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div id="admin-controls" class="hidden p-6 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 id="admin-title" class="text-xl font-bold">Inventory Manager</h2>
+                    <div class="flex gap-2">
+                        <button onclick="toggleVisualEdit()" id="v-edit-btn" class="text-[9px] bg-gray-100 px-3 py-1.5 rounded-lg font-black uppercase tracking-widest hover:bg-gray-200">Visual Edit</button>
+                        <button onclick="logoutAdmin()" class="p-2 text-red-400 hover:bg-red-50 rounded-lg">Logout</button>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 p-5 rounded-2xl border mb-6 space-y-4">
+                    <input type="hidden" id="edit-p-id">
+                    <div>
+                        <label class="text-[10px] font-black text-gray-400 uppercase ml-1">GitHub Public Token (Reference Only)</label>
+                        <input type="password" id="gh-key" placeholder="ghp_..." class="w-full p-2.5 border rounded-lg text-xs font-mono bg-white outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black text-gray-400 uppercase ml-1">Product Name</label>
+                        <input type="text" id="new-p-name" class="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div class="flex gap-3">
+                        <div class="w-1/3">
+                            <label class="text-[10px] font-black text-gray-400 uppercase ml-1">Price ($)</label>
+                            <input type="number" id="new-p-price" class="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div class="w-2/3">
+                            <label class="text-[10px] font-black text-gray-400 uppercase ml-1">Image URL</label>
+                            <input type="text" id="new-p-img" class="w-full p-2.5 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button id="save-btn" onclick="handleProductSubmit()" class="flex-[2] bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-100">Save Product</button>
+                        <button id="cancel-edit-btn" onclick="resetAdminForm()" class="hidden flex-1 border bg-white py-3 rounded-xl font-bold text-gray-400">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="border-t pt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Export for GitHub data.json</span>
+                        <button onclick="copyJSON()" class="text-[10px] bg-green-50 text-green-700 px-3 py-1 rounded-full font-bold">Copy JSON</button>
+                    </div>
+                    <textarea id="json-export" readonly class="w-full p-4 bg-gray-900 text-green-400 text-[10px] font-mono rounded-xl h-40 border-none outline-none"></textarea>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <div id="status-bar" class="mb-8 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white w-fit px-4 py-2 rounded-full border shadow-sm">
+            <span id="sync-dot" class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+            <span id="sync-text">Connecting to GitHub Inventory...</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="product-grid">
+            <!-- Initial Skeletons -->
+            <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-50"><div class="aspect-square rounded-2xl loading-skeleton mb-4"></div><div class="h-4 w-3/4 loading-skeleton mx-auto"></div></div>
+            <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-50"><div class="aspect-square rounded-2xl loading-skeleton mb-4"></div><div class="h-4 w-3/4 loading-skeleton mx-auto"></div></div>
+        </div>
+    </main>
+
+    <!-- Cart View -->
+    <div id="cart-overlay" class="fixed inset-0 bg-black/40 z-50 hidden backdrop-blur-sm" onclick="toggleCart()"></div>
+    <div id="cart-sidebar" class="fixed top-0 right-0 h-full w-full max-w-sm bg-white z-50 shadow-2xl cart-modal flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-xl font-black">My Basket</h2>
+            <button onclick="toggleCart()" class="text-2xl">&times;</button>
+        </div>
+        <div id="cart-items" class="flex-1 overflow-y-auto p-6 space-y-4"></div>
+        <div class="p-6 border-t bg-gray-50 space-y-4">
+            <div class="flex justify-between items-center">
+                <span class="text-gray-400 font-bold uppercase text-xs">Subtotal</span>
+                <span id="cart-total" class="text-2xl font-black text-green-600">$0.00</span>
+            </div>
+            <input type="text" id="cust-name" placeholder="Full Name" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-green-500">
+            <textarea id="cust-address" placeholder="Shipping Address" class="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-green-500" rows="2"></textarea>
+            <button onclick="sendToWhatsApp()" class="w-full bg-green-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-green-100 active:scale-95 transition">Checkout via WhatsApp</button>
+        </div>
+    </div>
+
+    <script>
+        const WHATSAPP = "1234567890";
+        // REPLACE THE BELOW URL WITH YOUR ACTUAL GITHUB RAW LINK FOR DATA.JSON
+        const GITHUB_JSON_URL = "https://raw.githubusercontent.com/username/repo/main/data.json";
+        const ADMIN_PASS = "admin";
+
+        let products = [];
+        let cart = [];
+        let isAdmin = false;
+        let isVisualEdit = false;
+
+        async function init() {
+            const dot = document.getElementById('sync-dot');
+            const text = document.getElementById('sync-text');
+            try {
+                // Fetch product list from data.json
+                const res = await fetch(GITHUB_JSON_URL);
+                if (!res.ok) throw new Error();
+                products = await res.json();
+                
+                dot.classList.replace('bg-yellow-400', 'bg-green-500');
+                dot.classList.remove('animate-pulse');
+                text.innerText = "GitHub Live Sync Active";
+            } catch (e) {
+                console.warn("Failed to fetch data.json. Using local defaults.");
+                dot.classList.replace('bg-yellow-400', 'bg-red-400');
+                dot.classList.remove('animate-pulse');
+                text.innerText = "Offline Mode - Check data.json URL";
+                
+                // Default fallback data if the file is missing
+                products = [
+                    { id: 1, name: "Sample Hoodie", price: 50, img: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400" },
+                    { id: 2, name: "Sample Shoes", price: 100, img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400" }
+                ];
+            }
+            render();
+            updateExport();
+        }
+
+        function render() {
+            const grid = document.getElementById('product-grid');
+            if (products.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-20 text-gray-400 italic">No products found in data.json</div>`;
+                return;
+            }
+            
+            grid.innerHTML = products.map(p => `
+                <div class="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden group hover:shadow-2xl transition-all duration-500">
+                    <div class="aspect-square relative overflow-hidden bg-gray-50">
+                        <img src="${p.img}" class="w-full h-full object-cover group-hover:scale-110 transition duration-700" onerror="this.src='https://via.placeholder.com/400?text=No+Image'">
+                        <div class="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full font-black text-green-600 shadow-sm">$${parseFloat(p.price).toFixed(2)}</div>
+                        <div class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 transition-opacity duration-300 ${isAdmin && isVisualEdit ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
+                            ${isAdmin ? `
+                                <button onclick="editProduct(${p.id})" class="w-24 bg-white text-gray-900 py-2 rounded-xl font-bold text-[10px] uppercase tracking-tighter">Edit</button>
+                                <button onclick="deleteProduct(${p.id})" class="w-24 bg-red-500 text-white py-2 rounded-xl font-bold text-[10px] uppercase tracking-tighter">Delete</button>
+                            ` : `
+                                <button onclick="addToCart(${p.id})" class="bg-white text-gray-900 px-6 py-3 rounded-2xl font-bold shadow-2xl">Add to Basket</button>
+                            `}
+                        </div>
+                    </div>
+                    <div class="p-6 text-center">
+                        <h3 class="font-bold text-gray-800 mb-4 h-10 line-clamp-2 text-sm">${p.name}</h3>
+                        <button onclick="addToCart(${p.id})" class="w-full py-3 bg-gray-50 rounded-2xl font-bold text-xs hover:bg-green-600 hover:text-white transition">Buy Now</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleAdmin() { document.getElementById('admin-section').classList.toggle('active'); }
+        
+        function loginAdmin() {
+            if (document.getElementById('admin-pass').value === ADMIN_PASS) {
+                isAdmin = true;
+                document.getElementById('admin-auth').classList.add('hidden');
+                document.getElementById('admin-controls').classList.remove('hidden');
+                document.getElementById('admin-toggle-btn').innerText = "Admin: ACTIVE";
+                document.getElementById('admin-toggle-btn').classList.add('text-green-600');
+                render();
+            } else {
+                alert("Incorrect password.");
+            }
+        }
+
+        function logoutAdmin() {
+            isAdmin = false;
+            isVisualEdit = false;
+            document.getElementById('admin-auth').classList.remove('hidden');
+            document.getElementById('admin-controls').classList.add('hidden');
+            document.getElementById('admin-toggle-btn').innerText = "Admin Login";
+            document.getElementById('admin-toggle-btn').classList.remove('text-green-600');
+            toggleAdmin();
+            render();
+        }
+
+        function toggleVisualEdit() {
+            isVisualEdit = !isVisualEdit;
+            const btn = document.getElementById('v-edit-btn');
+            btn.classList.toggle('bg-green-600');
+            btn.classList.toggle('text-white');
+            render();
+        }
+
+        function handleProductSubmit() {
+            const id = document.getElementById('edit-p-id').value;
+            const name = document.getElementById('new-p-name').value;
+            const price = document.getElementById('new-p-price').value;
+            const img = document.getElementById('new-p-img').value;
+
+            if (!name || !price || !img) return;
+
+            if (id) {
+                const idx = products.findIndex(p => p.id == id);
+                products[idx] = { id: Number(id), name, price: Number(price), img };
+            } else {
+                products.unshift({ id: Date.now(), name, price: Number(price), img });
+            }
+
+            render();
+            updateExport();
+            resetAdminForm();
+        }
+
+        function editProduct(id) {
+            const p = products.find(x => x.id === id);
+            document.getElementById('admin-title').innerText = "Edit Item";
+            document.getElementById('edit-p-id').value = p.id;
+            document.getElementById('new-p-name').value = p.name;
+            document.getElementById('new-p-price').value = p.price;
+            document.getElementById('new-p-img').value = p.img;
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+            document.getElementById('save-btn').innerText = "Save Changes";
+            toggleAdmin();
+        }
+
+        function deleteProduct(id) {
+            if (confirm("Delete this item?")) {
+                products = products.filter(p => p.id !== id);
+                render();
+                updateExport();
+            }
+        }
+
+        function resetAdminForm() {
+            document.getElementById('admin-title').innerText = "Inventory Manager";
+            document.getElementById('edit-p-id').value = '';
+            document.getElementById('new-p-name').value = '';
+            document.getElementById('new-p-price').value = '';
+            document.getElementById('new-p-img').value = '';
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+            document.getElementById('save-btn').innerText = "Save Product";
+        }
+
+        function updateExport() { document.getElementById('json-export').value = JSON.stringify(products, null, 2); }
+
+        function copyJSON() {
+            const area = document.getElementById('json-export');
+            area.select();
+            document.execCommand('copy');
+            alert("JSON Copied! Paste this into your GitHub data.json file.");
+        }
+
+        function toggleCart() {
+            document.getElementById('cart-sidebar').classList.toggle('open');
+            document.getElementById('cart-overlay').classList.toggle('hidden');
+        }
+
+        function addToCart(pid) {
+            const p = products.find(x => x.id === pid);
+            const exists = cart.find(i => i.id === pid);
+            if (exists) exists.qty++;
+            else cart.push({...p, qty: 1});
+            renderCart();
+        }
+
+        function updateCartQty(id, d) {
+            const item = cart.find(i => i.id === id);
+            if (item) {
+                item.qty += d;
+                if (item.qty <= 0) cart = cart.filter(i => i.id !== id);
+            }
+            renderCart();
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cart-items');
+            let total = 0, count = 0;
+            container.innerHTML = cart.length ? cart.map(item => {
+                total += item.price * item.qty;
+                count += item.qty;
+                return `
+                    <div class="flex items-center gap-4 bg-gray-50 p-4 rounded-3xl">
+                        <img src="${item.img}" class="w-16 h-16 object-cover rounded-2xl" onerror="this.src='https://via.placeholder.com/100'">
+                        <div class="flex-1">
+                            <h4 class="text-xs font-bold line-clamp-1">${item.name}</h4>
+                            <p class="text-green-600 font-black text-sm">$${item.price.toFixed(2)}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="updateCartQty(${item.id}, -1)" class="w-6 h-6 border rounded-lg">-</button>
+                            <span class="text-xs font-black">${item.qty}</span>
+                            <button onclick="updateCartQty(${item.id}, 1)" class="w-6 h-6 border rounded-lg">+</button>
+                        </div>
+                    </div>`;
+            }).join('') : `<p class="text-center text-gray-400 py-10 italic">Basket is empty</p>`;
+            document.getElementById('cart-total').innerText = `$${total.toFixed(2)}`;
+            document.getElementById('cart-count').innerText = count;
+        }
+
+        function sendToWhatsApp() {
+            const name = document.getElementById('cust-name').value;
+            const addr = document.getElementById('cust-address').value;
+            if (!name || !addr || !cart.length) {
+                alert("Please fill in shipping details and add items to cart.");
+                return;
+            }
+            let msg = `*NEW ORDER*\n\nName: ${name}\nAddress: ${addr}\n\nItems:\n`;
+            cart.forEach(i => msg += `- ${i.name} (x${i.qty})\n`);
+            msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
+            window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

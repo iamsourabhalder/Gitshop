@@ -135,7 +135,7 @@
     <script>
         const WHATSAPP = "1234567890";
         // REPLACE THE BELOW URL WITH YOUR ACTUAL GITHUB RAW LINK FOR DATA.JSON
-        const GITHUB_JSON_URL = "https://raw.githubusercontent.com/username/repo/main/data.json";
+        const GITHUB_JSON_URL = "https://raw.githubusercontent.com/iamsourabhalder/GITform/data.json";
         const ADMIN_PASS = "admin";
 
         let products = [];
@@ -349,7 +349,7 @@
             let msg = `*NEW ORDER*\n\nName: ${name}\nAddress: ${addr}\n\nItems:\n`;
             cart.forEach(i => msg += `- ${i.name} (x${i.qty})\n`);
             msg += `\n*TOTAL: ${document.getElementById('cart-total').innerText}*`;
-            window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`);
+            window.open(`https://wa.me/${+91_8513001304}?text=${encodeURIComponent(msg)}`);
         }
 
         window.onload = init;
